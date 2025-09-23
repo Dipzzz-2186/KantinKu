@@ -11,7 +11,7 @@ import '../models/order_item_model.dart';
 import '../models/payment_model.dart';
 
 class ApiService {
-  final String baseUrl = "http://127.0.0.1:8000"; // ganti sesuai server FastAPI kamu
+  final String baseUrl = "http://10.0.2.2:8000"; // ganti sesuai server FastAPI kamu
 
   // ================== USERS ==================
   Future<List<User>> fetchUsers() async {
