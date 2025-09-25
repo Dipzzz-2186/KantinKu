@@ -11,8 +11,10 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'E-Commerce Client',
-      theme: ThemeData(primarySwatch: Colors.green),
+      title: 'Kantinku',
+      theme: ThemeData(primarySwatch: Colors.green,
+      fontFamily: 'Poppins'
+      ),
       home: const SplashScreen(),
     );
   }

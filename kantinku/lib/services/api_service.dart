@@ -11,7 +11,7 @@ import '../models/order_item_model.dart';
 import '../models/payment_model.dart';
 
 class ApiService {
-  final String baseUrl = "http://10.0.2.2:8000"; // ganti sesuai server FastAPI kamu
+  final String baseUrl = "http://127.0.0.1:8000"; // ganti sesuai server FastAPI kamu
 
   // ================== USERS ==================
   Future<List<User>> fetchUsers() async {
@@ -82,6 +82,16 @@ class ApiService {
     } else {
       throw Exception("Failed to load products");
     }
+  }
+
+    Future<List<Product>> fetchProductsByUser(int userId) async {
+      final response = await http.get(Uri.parse("$baseUrl/products/filter-by-user?user_id=$userId"));
+      if (response.statusCode == 200) {
+        List data = json.decode(response.body);
+        return data.map((e) => Product.fromJson(e)).toList();
+      } else {
+        throw Exception("Failed to filter products by user");
+      }
   }
 
   Future<Product> createProduct(String nama, int harga, int kategoriId, {String? gambar}) async {
