@@ -6,7 +6,10 @@ import 'package:kantinku/services/api_service.dart';
 import 'package:kantinku/utils/snackbar_utils.dart';
 
 class DialogUtils {
-  static Future<User?> showLoginDialog(BuildContext context, ApiService api) async {
+  static Future<User?> showLoginDialog(
+    BuildContext context,
+    ApiService api,
+  ) async {
     String name = '';
     String password = '';
 
@@ -36,21 +39,30 @@ class DialogUtils {
                 try {
                   // Panggil fungsi loginUser yang menerima nama dan password
                   final user = await api.loginUser(name, password);
-                  Navigator.pop(context, user);
-                  SnackbarUtils.showMessage(context, 'Login berhasil');
+                  if (context.mounted) Navigator.pop(context, user);
                 } catch (e) {
-                  SnackbarUtils.showMessage(context, 'Login gagal: ${e.toString()}');
+                  SnackbarUtils.showMessage(
+                    context,
+                    'Login gagal: ${e.toString()}',
+                  );
+                  // FIX: Jangan pop dialog saat gagal, biarkan user melihat error.
                 }
               },
               child: const Text('Login'),
             ),
             TextButton(
               onPressed: () async {
-                Navigator.pop(context);
+                // FIX: Simpan BuildContext dari LoginDialog sebelum menutupnya.
+                final loginDialogContext = context;
+                Navigator.pop(loginDialogContext); // Tutup dialog login
+
+                // Panggil dialog registrasi
                 final newUser = await showRegisterDialog(context, api);
-                if (newUser != null) {
-                  SnackbarUtils.showMessage(context, 'Registrasi berhasil! Silakan login.');
-                }
+
+                // Setelah dialog registrasi ditutup, jika berhasil,
+                // tampilkan kembali dialog login agar pengguna bisa langsung login.
+                // Pesan sukses sudah ditangani di dalam showRegisterDialog.
+                if (newUser != null) await showLoginDialog(context, api);
               },
               child: const Text('Register'),
             ),
@@ -60,7 +72,10 @@ class DialogUtils {
     );
   }
 
-  static Future<User?> showRegisterDialog(BuildContext context, ApiService api) async {
+  static Future<User?> showRegisterDialog(
+    BuildContext context,
+    ApiService api,
+  ) async {
     String name = '';
     String phone = '';
     String password = '';
@@ -93,16 +108,45 @@ class DialogUtils {
           actions: [
             TextButton(
               onPressed: () async {
-                if (name.isNotEmpty && phone.isNotEmpty && password.isNotEmpty) {
+                if (name.isNotEmpty &&
+                    phone.isNotEmpty &&
+                    password.isNotEmpty) {
                   try {
-                    final newUser = await api.createUser(name, phone, 'customer', password);
-                    Navigator.pop(context, newUser);
+                    // FIX: Gunakan registerUser yang endpointnya lebih sesuai
+                    final newUser = await api.registerUser(
+                      name,
+                      phone,
+                      password,
+                    );
+                    // FIX: Cek apakah context masih valid sebelum menampilkan Snackbar dan pop.
+                    // 'mounted' adalah cara standar untuk memeriksa ini di dalam State object,
+                    // tapi karena ini di dalam builder, kita perlu memastikan context-nya masih di tree.
+                    if (context.mounted) {
+                      SnackbarUtils.showMessage(
+                        context,
+                        'Registrasi berhasil! Silakan login.',
+                      );
+                      // Tunggu sebentar agar pesan terlihat, lalu tutup.
+                      await Future.delayed(const Duration(milliseconds: 500));
+                      if (context.mounted) {
+                        Navigator.pop(context, newUser);
+                      }
+                    }
                   } catch (e) {
-                    SnackbarUtils.showMessage(context, 'Registrasi gagal: ${e.toString()}');
-                    Navigator.pop(context);
+                    if (context.mounted) {
+                      SnackbarUtils.showMessage(
+                        context,
+                        // 'Registrasi gagal: ${e.toString().replaceFirst("Exception: ", "")}',
+                        'Sudah ada pengguna dengan nama tersebut.',
+                      );
+                    }
+                    // FIX: Jangan pop dialog saat gagal.
                   }
                 } else {
-                  SnackbarUtils.showMessage(context, 'Semua bidang harus diisi');
+                  SnackbarUtils.showMessage(
+                    context,
+                    'Semua bidang harus diisi',
+                  );
                 }
               },
               child: const Text('Register'),

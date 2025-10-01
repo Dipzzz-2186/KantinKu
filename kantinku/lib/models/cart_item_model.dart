@@ -1,5 +1,5 @@
 class CartItem {
-  final int id;
+  final int? id;
   final int userId;
   final int productId;
   final int jumlah;

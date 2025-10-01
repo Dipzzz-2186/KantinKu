@@ -1,6 +1,8 @@
+// file: lib/widgets/product_card.dart
+
 import 'package:flutter/material.dart';
 import '../models/product_model.dart';
-import '../utils/image_utils.dart';
+import 'product_image_display.dart'; // Pastikan import ini benar
 
 class ProductCard extends StatelessWidget {
   final Product product;
@@ -8,6 +10,7 @@ class ProductCard extends StatelessWidget {
   final VoidCallback onAdd;
   final VoidCallback onRemove;
   final VoidCallback onAddToCart;
+  final bool showControls; // Properti baru
 
   const ProductCard({
     super.key,
@@ -16,122 +19,100 @@ class ProductCard extends StatelessWidget {
     required this.onAdd,
     required this.onRemove,
     required this.onAddToCart,
+    this.showControls = true, // Defaultnya true
   });
 
-
-@override
+  @override
   Widget build(BuildContext context) {
-    final ImageProvider? productImage = ImageUtils.decodeBase64(product.gambar);
-
     return Card(
       elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          AspectRatio(
-            aspectRatio: 1.0,
-            child: Padding(
-              padding: const EdgeInsets.all(4.0),
-              child: Center(
-                child: productImage != null
-                    ? Image(
-                        image: productImage,
-                        fit: BoxFit.contain,
-                      )
-                    : const Icon(Icons.fastfood, size: 40, color: Colors.grey),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              child: ProductImageDisplay(
+                imageString: product.gambar,
+                fit: BoxFit.cover,
+                width: double.infinity,
               ),
             ),
           ),
-          Expanded( // Tambahkan agar bagian bawah card tidak tenggelam
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+          Padding(
+            padding: const EdgeInsets.all(10.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  product.namaProduk,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Rp ${product.harga}',
+                  style: TextStyle(
+                    color: Colors.green[700],
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // FIX: Tampilkan kontrol hanya jika showControls adalah true
+          if (showControls)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Text(
-                    product.namaProduk,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Rp ${product.harga.toString()}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.green.shade600,
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                  const SizedBox(height: 8),
-                  Spacer(), // Agar tombol selalu di bawah
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Row(
-                        children: [
-                          SizedBox(
-                            width: 28,
-                            height: 28,
-                            child: IconButton(
-                              icon: const Icon(Icons.remove, size: 18),
-                              onPressed: quantity > 0 ? onRemove : null,
-                              color: quantity > 0 ? Colors.grey.shade700 : Colors.grey.shade400,
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                            ),
-                          ),
-                          SizedBox(
-                            width: 20,
-                            child: Center(
-                              child: Text(
-                                '$quantity',
-                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          ),
-                          SizedBox(
-                            width: 28,
-                            height: 28,
-                            child: IconButton(
-                              icon: const Icon(Icons.add, size: 18),
-                              onPressed: onAdd,
-                              color: Colors.green.shade700,
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                            ),
-                          ),
-                        ],
+                      IconButton(
+                        icon: const Icon(Icons.remove_circle_outline),
+                        onPressed: onRemove,
+                        color: Colors.red,
                       ),
-                      SizedBox(
-                        height: 32,
-                        child: ElevatedButton.icon(
-                          icon: const Icon(Icons.add, size: 16),
-                          label: const Text('Pesan', style: TextStyle(fontSize: 11)),
-                          style: ElevatedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            backgroundColor: Colors.green.shade700,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            elevation: 2,
-                          ),
-                          onPressed: onAddToCart,
-                        ),
+                      Text(
+                        '$quantity',
+                        style: const TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.add_circle_outline),
+                        onPressed: onAdd,
+                        color: Colors.green,
                       ),
                     ],
                   ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: quantity > 0 ? onAddToCart : null,
+                      icon: const Icon(Icons.add_shopping_cart),
+                      label: const Text('Add to Cart'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueAccent,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                 ],
               ),
             ),
-          ),
         ],
       ),
     );
-  }}
+  }
+}

@@ -4,6 +4,7 @@ class Product {
   final int harga;
   final int kategoriId;
   final String? gambar;
+  final bool isActive; // Menambahkan field isActive
 
   Product({
     required this.id,
@@ -11,6 +12,7 @@ class Product {
     required this.harga,
     required this.kategoriId,
     this.gambar,
+    this.isActive = true, // Default true jika tidak disediakan
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
@@ -20,6 +22,7 @@ class Product {
       harga: json['harga'],
       kategoriId: json['kategori_id'],
       gambar: json['gambar'],
+      isActive: json['is_active'] ?? true, // Default true jika tidak ada di JSON
     );
   }
 
@@ -30,6 +33,7 @@ class Product {
       "harga": harga,
       "kategori_id": kategoriId,
       "gambar": gambar,
+      "is_active": isActive,
     };
   }
 }

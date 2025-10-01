@@ -1,40 +1,43 @@
 class Payment {
-  final int id;
+  final int? id;
   final int orderId;
-  final String? transaksiIdMidtrans;
-  final String metodePembayaran;
-  final double jumlahPembayaran;
-  final String? tanggalPembayaran;
-  final String statusPembayaran;
-  final String? nomorVa;
+  final String? transaksiId;
+  final String? statusCode;
+  final String transactionStatus;
+  final double grossAmount;
+  final String paymentType;
   final String? qrCodeUrl;
-  final String? waktuPenyelesaian;
+  final String? transactionTime;
+  final String? settlementTime;
+  final String? signatureKey;
 
   Payment({
-    required this.id,
+    this.id,
     required this.orderId,
-    this.transaksiIdMidtrans,
-    required this.metodePembayaran,
-    required this.jumlahPembayaran,
-    this.tanggalPembayaran,
-    required this.statusPembayaran,
-    this.nomorVa,
+    this.transaksiId,
+    this.statusCode,
+    required this.transactionStatus,
+    required this.grossAmount,
+    required this.paymentType,
     this.qrCodeUrl,
-    this.waktuPenyelesaian,
+    this.transactionTime,
+    this.settlementTime,
+    this.signatureKey,
   });
 
   factory Payment.fromJson(Map<String, dynamic> json) {
     return Payment(
       id: json['id'],
       orderId: json['order_id'],
-      transaksiIdMidtrans: json['transaksi_id_midtrans'],
-      metodePembayaran: json['metode_pembayaran'],
-      jumlahPembayaran: (json['jumlah_pembayaran'] as num).toDouble(),
-      tanggalPembayaran: json['tanggal_pembayaran'],
-      statusPembayaran: json['status_pembayaran'],
-      nomorVa: json['nomor_va'],
+      transaksiId: json['transaksi_id'],
+      statusCode: json['status_code'],
+      transactionStatus: json['transaction_status'],
+      grossAmount: (json['gross_amount'] as num).toDouble(),
+      paymentType: json['payment_type'],
       qrCodeUrl: json['qr_code_url'],
-      waktuPenyelesaian: json['waktu_penyelesaian'],
+      transactionTime: json['transaction_time'],
+      settlementTime: json['settlement_time'],
+      signatureKey: json['signature_key'],
     );
   }
 
@@ -42,14 +45,15 @@ class Payment {
     return {
       "id": id,
       "order_id": orderId,
-      "transaksi_id_midtrans": transaksiIdMidtrans,
-      "metode_pembayaran": metodePembayaran,
-      "jumlah_pembayaran": jumlahPembayaran,
-      "tanggal_pembayaran": tanggalPembayaran,
-      "status_pembayaran": statusPembayaran,
-      "nomor_va": nomorVa,
+      "transaksi_id": transaksiId,
+      "status_code": statusCode,
+      "transaction_status": transactionStatus,
+      "gross_amount": grossAmount,
+      "payment_type": paymentType,
       "qr_code_url": qrCodeUrl,
-      "waktu_penyelesaian": waktuPenyelesaian,
+      "transaction_time": transactionTime,
+      "settlement_time": settlementTime,
+      "signature_key": signatureKey,
     };
   }
 }
