@@ -1,5 +1,3 @@
-// file: screens/staff_order_inbox_view.dart
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:kantinku/models/user_model.dart';
@@ -7,9 +5,9 @@ import '../services/api_service.dart';
 import '../models/order_model.dart';
 import '../models/product_model.dart';
 import '../utils/snackbar_utils.dart';
-import 'dart:async'; // Untuk Timer (simulasi realtime)
-import '../widgets/empty_state_message.dart'; // Import widget baru
-import 'staff_order_detail_screen.dart'; // Import layar detail baru
+import 'dart:async';
+import '../widgets/empty_state_message.dart';
+import 'staff_order_detail_screen.dart';
 
 class StaffOrderInboxView extends StatefulWidget {
   final int staffId;
@@ -23,9 +21,9 @@ class _StaffOrderInboxViewState extends State<StaffOrderInboxView> {
   final ApiService api = ApiService();
   List<Order> _inboxOrders = [];
   bool _isLoading = true;
-  List<User> _allUsers = []; // Simpan semua pengguna untuk referensi
-  List<Product> _allProducts = []; // Simpan semua produk untuk referensi
-  Timer? _timer; // Timer untuk polling (simulasi realtime)
+  List<User> _allUsers = [];
+  List<Product> _allProducts = [];
+  Timer? _timer;
 
   @override
   void initState() {
@@ -41,39 +39,31 @@ class _StaffOrderInboxViewState extends State<StaffOrderInboxView> {
 
   void _startPolling() {
     _fetchInboxOrders();
-    // Refresh setiap 10 detik (Simulasi Realtime)
     _timer = Timer.periodic(const Duration(seconds: 10), (timer) {
       _fetchInboxOrders(showNotification: true);
     });
   }
 
   Future<void> _fetchInboxOrders({bool showNotification = false}) async {
-    // Jangan tampilkan loading indicator saat polling, agar tidak mengganggu
     if (mounted && !showNotification) {
       setState(() => _isLoading = true);
     }
 
     try {
-      // FIX: Ambil semua data yang diperlukan secara bersamaan
       final results = await Future.wait([
-        api.fetchStaffOrderInbox(
-          widget.staffId,
-        ), // Ini sudah include_items=true
+        api.fetchStaffOrderInbox(widget.staffId),
         if (_allProducts.isEmpty) api.fetchProducts(),
         if (_allUsers.isEmpty) api.fetchUsers(),
       ]);
 
-      // FIX: Tambahkan null-check untuk setiap hasil dari Future.wait
       final orders = results[0] as List<Order>;
-      if (results.length > 1 && results[1] != null && _allProducts.isEmpty) {
+      if (results.length > 1 && _allProducts.isEmpty) {
         _allProducts = results[1] as List<Product>;
       }
-      if (results.length > 2 && results[2] != null && _allUsers.isEmpty) {
+      if (results.length > 2 && _allUsers.isEmpty) {
         _allUsers = results[2] as List<User>;
       }
 
-      // FIX: Filter pesanan di sisi client untuk menampilkan status yang relevan.
-      // Pesanan akan tetap di inbox selama statusnya 'paid', 'cooking', atau 'ready_for_pickup'.
       final relevantOrders = orders.where((order) {
         final status = order.status.toLowerCase();
         return status == 'paid' ||
@@ -111,11 +101,38 @@ class _StaffOrderInboxViewState extends State<StaffOrderInboxView> {
         builder: (context) => StaffOrderDetailScreen(
           order: order,
           allProducts: _allProducts,
-          allUsers: _allUsers, // Teruskan daftar pengguna
-          onStatusUpdated: () => _fetchInboxOrders(), // Callback untuk refresh
+          allUsers: _allUsers,
+          staffId: widget.staffId,
+          onStatusUpdated: () => _fetchInboxOrders(),
         ),
       ),
     );
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'paid':
+        return Colors.orange.shade300;
+      case 'cooking':
+        return Colors.blue.shade300;
+      case 'ready_for_pickup':
+        return Colors.green.shade400;
+      default:
+        return Colors.grey.shade400;
+    }
+  }
+
+  IconData _getStatusIcon(String status) {
+    switch (status.toLowerCase()) {
+      case 'paid':
+        return Icons.payments_outlined;
+      case 'cooking':
+        return Icons.restaurant_menu_rounded;
+      case 'ready_for_pickup':
+        return Icons.delivery_dining_rounded;
+      default:
+        return Icons.help_outline;
+    }
   }
 
   @override
@@ -126,25 +143,22 @@ class _StaffOrderInboxViewState extends State<StaffOrderInboxView> {
 
     return _inboxOrders.isEmpty
         ? RefreshIndicator(
-            onRefresh: () => _fetchInboxOrders(),
+            onRefresh: _fetchInboxOrders,
             child: const EmptyStateMessage(
               message: "Tidak ada pesanan yang perlu disiapkan.",
             ),
           )
         : RefreshIndicator(
-            onRefresh: () => _fetchInboxOrders(),
+            onRefresh: _fetchInboxOrders,
             child: ListView.builder(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(16),
               itemCount: _inboxOrders.length,
               itemBuilder: (context, index) {
                 final order = _inboxOrders[index];
                 final formattedDate = order.tanggalPesanan != null
-                    ? DateFormat(
-                        'HH:mm',
-                      ).format(DateTime.parse(order.tanggalPesanan!))
+                    ? DateFormat('HH:mm').format(DateTime.parse(order.tanggalPesanan!))
                     : 'N/A';
 
-                // Ambil nama customer dari list allUsers
                 final customerName = _allUsers
                     .firstWhere(
                       (user) => user.id == order.userId,
@@ -152,30 +166,88 @@ class _StaffOrderInboxViewState extends State<StaffOrderInboxView> {
                     )
                     .namaPengguna;
 
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  elevation: 3,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: Colors.blue.shade200, width: 1.5),
-                  ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      vertical: 8,
-                      horizontal: 16,
+                final statusColor = _getStatusColor(order.status);
+                final statusIcon = _getStatusIcon(order.status);
+
+                return GestureDetector(
+                  onTap: () => _navigateToDetail(order),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 6,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                      border: Border.all(color: statusColor, width: 1.5),
                     ),
-                    title: Text(
-                      'Pesanan #${order.id}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: statusColor,
+                        child: Icon(statusIcon, color: Colors.white),
+                      ),
+                      title: Text(
+                        'Pesanan #${order.id}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 4),
+                          Text(
+                            'Pemesan: $customerName',
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Total: Rp ${order.totalHarga.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                      trailing: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            formattedDate,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: statusColor.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              order.status.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: statusColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    subtitle: Text(
-                      'Pemesan: $customerName • Total: Rp ${order.totalHarga.toStringAsFixed(0)}',
-                    ),
-                    trailing: Text(
-                      formattedDate,
-                      style: const TextStyle(fontSize: 14, color: Colors.grey),
-                    ),
-                    onTap: () => _navigateToDetail(order),
                   ),
                 );
               },

@@ -1,42 +1,68 @@
-// file: widgets/order_card.dart (Versi diperbarui)
+// file: widgets/order_card.dart
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/order_model.dart';
 import '../utils/snackbar_utils.dart';
 import '../screens/order_detail_screen.dart';
-import '../models/product_model.dart'; // Diperlukan untuk navigasi
+import '../models/product_model.dart';
 
 class OrderCard extends StatelessWidget {
   final Order order;
   final List<Product> allProducts;
   final VoidCallback? onReorder;
-  final VoidCallback? onTap; // <-- Tambahkan callback ini
+  final VoidCallback? onContinuePayment;
+  final VoidCallback? onTap;
 
   const OrderCard({
     super.key,
     required this.order,
     this.onReorder,
+    this.onContinuePayment,
     required this.allProducts,
-    this.onTap, // <-- Perlu ditambahkan di konstruktor
+    this.onTap,
   });
 
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case 'paid':
       case 'settlement':
-        return Colors.green;
+      case 'completed':
+        return const Color(0xFF2E7D32); // Dark green
       case 'pending':
-        return Colors.orange;
+        return const Color(0xFFEF6C00); // Dark orange
       case 'cancelled':
       case 'failure':
-        return Colors.red;
+        return const Color(0xFFC62828); // Dark red
       case 'processed':
-        return Colors.blue;
+        return const Color(0xFF1565C0); // Dark blue
       case 'cooking':
-        return Colors.orange.shade700;
+        return const Color(0xFFE65100); // Deep orange
+      case 'ready_for_pickup':
+        return const Color(0xFF6A1B9A); // Purple
       default:
         return Colors.grey;
+    }
+  }
+
+  IconData _getStatusIcon(String status) {
+    switch (status.toLowerCase()) {
+      case 'paid':
+      case 'settlement':
+        return Icons.check_circle;
+      case 'pending':
+        return Icons.schedule;
+      case 'cancelled':
+      case 'failure':
+        return Icons.cancel;
+      case 'cooking':
+        return Icons.restaurant;
+      case 'ready_for_pickup':
+        return Icons.shopping_bag;
+      case 'completed':
+        return Icons.done_all;
+      default:
+        return Icons.info;
     }
   }
 
@@ -44,18 +70,18 @@ class OrderCard extends StatelessWidget {
     switch (status.toLowerCase()) {
       case 'paid':
       case 'settlement':
-        return 'Selesai Dibayar';
+        return 'Dibayar';
       case 'pending':
         return 'Menunggu Pembayaran';
       case 'cancelled':
       case 'failure':
-        return 'Dibatalkan/Gagal';
+        return 'Dibatalkan';
       case 'cooking':
         return 'Sedang Dimasak';
       case 'ready_for_pickup':
         return 'Siap Diambil';
       case 'completed':
-        return 'Selesai / Telah Diambil';
+        return 'Selesai';
       default:
         return 'Status Tidak Diketahui';
     }
@@ -71,75 +97,254 @@ class OrderCard extends StatelessWidget {
     }
   }
 
+  String _getRelativeTime(String? dateString) {
+    if (dateString == null) return '';
+    try {
+      final dateTime = DateTime.parse(dateString);
+      final now = DateTime.now();
+      final difference = now.difference(dateTime);
+
+      if (difference.inMinutes < 1) {
+        return 'Baru saja';
+      } else if (difference.inMinutes < 60) {
+        return '${difference.inMinutes} menit yang lalu';
+      } else if (difference.inHours < 24) {
+        return '${difference.inHours} jam yang lalu';
+      } else if (difference.inDays < 7) {
+        return '${difference.inDays} hari yang lalu';
+      } else {
+        return DateFormat('dd MMM yyyy').format(dateTime);
+      }
+    } catch (e) {
+      return '';
+    }
+  }
+
   Widget _buildHeader() {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Pesanan #${order.id}',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Total: Rp ${order.totalHarga.toStringAsFixed(0)}',
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-            ),
-          ],
-        ),
+        // Status Icon dengan gradient background
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: _getStatusColor(order.status).withOpacity(0.1),
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Text(
-            _getStatusText(order.status),
-            style: TextStyle(
-              color: _getStatusColor(order.status),
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                _getStatusColor(order.status),
+                _getStatusColor(order.status).withOpacity(0.7),
+              ],
             ),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: _getStatusColor(order.status).withOpacity(0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Icon(
+            _getStatusIcon(order.status),
+            color: Colors.white,
+            size: 28,
+          ),
+        ),
+        const SizedBox(width: 16),
+        // Order Info
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    'Pesanan #${order.id}',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF3E2723),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _getStatusColor(order.status).withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: _getStatusColor(order.status).withOpacity(0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      _getStatusText(order.status),
+                      style: TextStyle(
+                        color: _getStatusColor(order.status),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.access_time,
+                    size: 14,
+                    color: Colors.grey,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    _getRelativeTime(order.tanggalPesanan),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ],
     );
   }
 
+  Widget _buildPriceSection() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFFFF8E1),
+            Color(0xFFFFECB3),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFFFFD54F).withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.receipt_long,
+                size: 20,
+                color: Color(0xFFE65100),
+              ),
+              SizedBox(width: 8),
+              Text(
+                'Total Pembayaran',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFF6D4C41),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          Text(
+            'Rp ${NumberFormat('#,###', 'id_ID').format(order.totalHarga)}',
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFFE65100),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildActionButtons(BuildContext context) {
-    final isFinal =
-        order.status.toLowerCase() == 'paid' ||
+    final isFinal = order.status.toLowerCase() == 'paid' ||
         order.status.toLowerCase() == 'settlement' ||
         order.status.toLowerCase() == 'cancelled' ||
-        order.status.toLowerCase() == 'failure';
+        order.status.toLowerCase() == 'failure' ||
+        order.status.toLowerCase() == 'completed';
+    final isPending = order.status.toLowerCase() == 'pending';
 
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         // Tombol Pesan Lagi
         if (isFinal && onReorder != null)
-          ElevatedButton.icon(
-            onPressed: onReorder,
-            icon: const Icon(Icons.refresh, size: 18),
-            label: const Text('Pesan Lagi'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.teal,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: onReorder,
+              icon: const Icon(Icons.replay, size: 20),
+              label: const Text('Pesan Lagi'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF00897B),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                elevation: 0,
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 10),
             ),
-          )
-        else
-          const SizedBox(), // Spacer agar tombol detail tetap di kanan
+          ),
+        // Tombol Lanjutkan Pembayaran
+        if (isPending && onContinuePayment != null)
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: onContinuePayment,
+              icon: const Icon(Icons.payment, size: 20),
+              label: const Text('Bayar Sekarang'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFEF6C00),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                elevation: 0,
+              ),
+            ),
+          ),
+        if ((isFinal && onReorder != null) ||
+            (isPending && onContinuePayment != null))
+          const SizedBox(width: 10),
         // Tombol Lihat Detail
-        TextButton.icon(
-          onPressed: onTap,
-          icon: const Icon(Icons.receipt_long, size: 18),
-          label: const Text('Lihat Detail'),
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: onTap,
+            icon: const Icon(Icons.arrow_forward, size: 18),
+            label: const Text('Detail'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF5D4037),
+              side: const BorderSide(
+                color: Color(0xFF5D4037),
+                width: 1.5,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
+            ),
+          ),
         ),
       ],
     );
@@ -147,34 +352,41 @@ class OrderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final displayDate = _formatDate(order.tanggalPesanan);
-    final isFinal =
-        order.status.toLowerCase() == 'paid' ||
-        order.status.toLowerCase() == 'settlement' ||
-        order.status.toLowerCase() == 'cancelled' ||
-        order.status.toLowerCase() == 'failure';
-
-    return Card(
-      elevation: 4,
-      margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        onTap: onTap, // <-- Panggil callback onTap
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(),
-              const Divider(height: 20, color: Colors.grey),
-              // Detail Waktu
-              Text(
-                'Waktu Pesan: ${_formatDate(order.tanggalPesanan)}',
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-              const SizedBox(height: 10),
-              _buildActionButtons(context), // <-- Panggil action buttons
-            ],
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF5D4037).withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(18.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeader(),
+                const SizedBox(height: 16),
+                _buildPriceSection(),
+                const SizedBox(height: 16),
+                _buildActionButtons(context),
+              ],
+            ),
           ),
         ),
       ),

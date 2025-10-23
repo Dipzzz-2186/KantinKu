@@ -1,4 +1,4 @@
-// file: utils/dialog_utils.dart
+// file: lib/utils/dialog_utils.dart
 
 import 'package:flutter/material.dart';
 import 'package:kantinku/models/user_model.dart';
@@ -10,150 +10,223 @@ class DialogUtils {
     BuildContext context,
     ApiService api,
   ) async {
-    String name = '';
-    String password = '';
-
     return await showDialog<User>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Login'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                decoration: const InputDecoration(labelText: 'Nama Pengguna'),
-                onChanged: (value) => name = value,
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                decoration: const InputDecoration(labelText: 'Password'),
-                obscureText: true,
-                onChanged: (value) => password = value,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                try {
-                  // Panggil fungsi loginUser yang menerima nama dan password
-                  final user = await api.loginUser(name, password);
-                  if (context.mounted) Navigator.pop(context, user);
-                } catch (e) {
-                  SnackbarUtils.showMessage(
-                    context,
-                    'Login gagal: ${e.toString()}',
-                  );
-                  // FIX: Jangan pop dialog saat gagal, biarkan user melihat error.
-                }
-              },
-              child: const Text('Login'),
-            ),
-            TextButton(
-              onPressed: () async {
-                // FIX: Simpan BuildContext dari LoginDialog sebelum menutupnya.
-                final loginDialogContext = context;
-                Navigator.pop(loginDialogContext); // Tutup dialog login
+        return _AuthDialog(apiService: api);
+      },
+    );
+  }
+}
 
-                // Panggil dialog registrasi
-                final newUser = await showRegisterDialog(context, api);
+// WIDGET KUSTOM UNTUK DIALOG (PRIVATE)
+class _AuthDialog extends StatefulWidget {
+  final ApiService apiService;
+  const _AuthDialog({required this.apiService});
 
-                // Setelah dialog registrasi ditutup, jika berhasil,
-                // tampilkan kembali dialog login agar pengguna bisa langsung login.
-                // Pesan sukses sudah ditangani di dalam showRegisterDialog.
-                if (newUser != null) await showLoginDialog(context, api);
-              },
-              child: const Text('Register'),
-            ),
-          ],
-        );
+  @override
+  State<_AuthDialog> createState() => __AuthDialogState();
+}
+
+class __AuthDialogState extends State<_AuthDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _passwordController = TextEditingController();
+
+  bool _isLoginMode = true;
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    bool isPassword = false,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
+    return TextFormField(
+      controller: controller,
+      obscureText: isPassword,
+      keyboardType: keyboardType,
+      decoration: InputDecoration(
+        prefixIcon: Icon(icon, color: Colors.grey.shade600),
+        labelText: label,
+        filled: true,
+        fillColor: const Color(0xFFF3F4F6), // Sedikit lebih terang
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+      ),
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return '$label tidak boleh kosong';
+        }
+        return null;
       },
     );
   }
 
-  static Future<User?> showRegisterDialog(
-    BuildContext context,
-    ApiService api,
-  ) async {
-    String name = '';
-    String phone = '';
-    String password = '';
+  void _switchAuthMode() {
+    _formKey.currentState?.reset();
+    setState(() {
+      _isLoginMode = !_isLoginMode;
+    });
+  }
 
-    return await showDialog<User>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Register'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                decoration: const InputDecoration(labelText: 'Nama Pengguna'),
-                onChanged: (value) => name = value,
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                decoration: const InputDecoration(labelText: 'Nomor Telepon'),
-                onChanged: (value) => phone = value,
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                decoration: const InputDecoration(labelText: 'Password'),
-                obscureText: true,
-                onChanged: (value) => password = value,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                if (name.isNotEmpty &&
-                    phone.isNotEmpty &&
-                    password.isNotEmpty) {
-                  try {
-                    // FIX: Gunakan registerUser yang endpointnya lebih sesuai
-                    final newUser = await api.registerUser(
-                      name,
-                      phone,
-                      password,
-                    );
-                    // FIX: Cek apakah context masih valid sebelum menampilkan Snackbar dan pop.
-                    // 'mounted' adalah cara standar untuk memeriksa ini di dalam State object,
-                    // tapi karena ini di dalam builder, kita perlu memastikan context-nya masih di tree.
-                    if (context.mounted) {
-                      SnackbarUtils.showMessage(
-                        context,
-                        'Registrasi berhasil! Silakan login.',
-                      );
-                      // Tunggu sebentar agar pesan terlihat, lalu tutup.
-                      await Future.delayed(const Duration(milliseconds: 500));
-                      if (context.mounted) {
-                        Navigator.pop(context, newUser);
-                      }
-                    }
-                  } catch (e) {
-                    if (context.mounted) {
-                      SnackbarUtils.showMessage(
-                        context,
-                        // 'Registrasi gagal: ${e.toString().replaceFirst("Exception: ", "")}',
-                        'Sudah ada pengguna dengan nama tersebut.',
-                      );
-                    }
-                    // FIX: Jangan pop dialog saat gagal.
-                  }
-                } else {
-                  SnackbarUtils.showMessage(
-                    context,
-                    'Semua bidang harus diisi',
-                  );
-                }
-              },
-              child: const Text('Register'),
-            ),
-          ],
+  Future<void> _submit() async {
+     if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      if (_isLoginMode) {
+        // Logika untuk Login
+        final user = await widget.apiService.loginUser(
+          _nameController.text,
+          _passwordController.text,
         );
-      },
+        if (mounted) Navigator.pop(context, user);
+      } else {
+        // Logika untuk Registrasi
+        final newUser = await widget.apiService.registerUser(
+          _nameController.text,
+          _phoneController.text,
+          _passwordController.text,
+        );
+        if (mounted) {
+          SnackbarUtils.showMessage(context, 'Registrasi berhasil! Silakan login.');
+          _switchAuthMode(); // Otomatis kembali ke mode login setelah sukses register
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        final errorMessage = e.toString().replaceFirst("Exception: ", "");
+        SnackbarUtils.showMessage(context, 'Gagal: $errorMessage');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+ @override
+  Widget build(BuildContext context) {
+    // ============================================
+    // PALET WARNA TEMA UNTUK DIALOG
+    // ============================================
+    const dialogBackgroundColor = Color(0xFFFAF8F1); // Krem sangat pucat
+    const textFieldFillColor = Color(0xFFF3EFEA);    // Krem muda
+    const accentColor = Color(0xFF6D4C41);           // Cokelat tua sebagai aksen
+    const textColor = Color(0xFF4E342E);  // Abu-abu tua untuk teks
+    // ============================================
+
+    return Dialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      // PERBAIKAN WARNA: Terapkan warna latar belakang dialog
+      backgroundColor: dialogBackgroundColor,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 400),
+        child: AnimatedSize(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutQuad,
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _isLoginMode ? 'Selamat Datang' : 'Buat Akun Baru',
+                      // PERBAIKAN WARNA: Terapkan warna teks
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: textColor,
+                          ),
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    _buildTextField(
+                      controller: _nameController,
+                      label: 'Nama Pengguna',
+                      icon: Icons.person_outline,
+                    ),
+                    if (!_isLoginMode) ...[
+                      const SizedBox(height: 16),
+                      _buildTextField(
+                        controller: _phoneController,
+                        label: 'Nomor Telepon',
+                        icon: Icons.phone_outlined,
+                        keyboardType: TextInputType.phone,
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    _buildTextField(
+                      controller: _passwordController,
+                      label: 'Password',
+                      icon: Icons.lock_outline,
+                      isPassword: true,
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _submit,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          // PERBAIKAN WARNA: Terapkan warna aksen
+                          backgroundColor: accentColor,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : Text(_isLoginMode ? 'Login' : 'Register'),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    TextButton(
+                      onPressed: _switchAuthMode,
+                      style: TextButton.styleFrom(
+                        // PERBAIKAN WARNA: Terapkan warna aksen
+                        foregroundColor: accentColor,
+                      ),
+                      child: Text(
+                        _isLoginMode
+                            ? 'Belum punya akun? Daftar di sini'
+                            : 'Sudah punya akun? Login',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

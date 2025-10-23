@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 // import semua model
 import '../models/user_model.dart';
+import '../models/sales_data_model.dart';
 import '../models/category_model.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/product_model.dart';
@@ -15,6 +16,10 @@ import '../models/order_item_model.dart';
 import '../models/payment_model.dart';
 import 'package:flutter/foundation.dart' hide Category;
 import 'dart:typed_data';
+import '../models/product_sales_summary_model.dart';
+import '../models/staff_dashboard_data_model.dart';
+import '../models/product_user_model.dart';
+import 'package:web_socket_channel/web_socket_channel.dart'; // <-- Import WebSocket
 
 class ApiService {
   final String baseUrl =
@@ -22,11 +27,69 @@ class ApiService {
   String? _authToken;
   int? _currentUserId;
 
+  // FIX: Tambahkan WebSocket channel
+  WebSocketChannel? _channel;
+
   // ================== AUTH TOKEN ==================
   Future<String?> getAuthToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('auth_token');
   }
+
+ Future<void> sendFcmToken({required int userId, required String token}) async {
+    final authToken = await getAuthToken();
+    if (authToken == null) {
+      // Jika tidak ada token auth, jangan lanjutkan
+      return;
+    }
+
+    // Endpoint ini harus Anda buat di backend Anda
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/fcm-token'),
+      headers: {
+        // --- PERBAIKI BARIS INI ---
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'Bearer $authToken',
+      },
+      body: jsonEncode({
+        'user_id': userId,
+        'token': token,
+      }),
+    );
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      // Gagal mengirim token, kita bisa log errornya tapi tidak perlu
+      // mengganggu user dengan pesan error.
+      print('Gagal mengirim FCM token ke server: ${response.body}');
+    }
+  }
+
+  Future<void> deleteFcmToken(String token) async {
+    try {
+      final authToken = await getAuthToken();
+      
+      if (authToken == null) {
+        print("⚠️ Cannot delete FCM token: not authenticated");
+        return;
+      }
+
+      final response = await http.delete(
+        Uri.parse('$baseUrl/api/fcm-token/$token'),
+        headers: {
+          'Authorization': 'Bearer $authToken',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        print("✅ FCM token deleted successfully");
+      } else {
+        print("⚠️ Failed to delete FCM token: ${response.statusCode}");
+      }
+    } catch (e) {
+      print("❌ Error deleting FCM token: $e");
+    }
+  }
+
 
   Future<void> saveAuthToken(String token) async {
     _authToken = token;
@@ -67,12 +130,55 @@ class ApiService {
     await prefs.remove('user_id');
     _authToken = null;
     _currentUserId = null;
+    // FIX: Tutup koneksi WebSocket saat logout
+    disconnectWebSocket();
   }
 
   Future<void> clearAuthToken() async {
     _authToken = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('auth_token');
+  }
+
+  // ================== WEBSOCKETS ==================
+
+  // FIX: Fungsi untuk memulai koneksi WebSocket
+  Future<Stream<dynamic>?> connectWebSocket(int userId) async {
+    // Pastikan ada async
+    final wsUrl = baseUrl
+        .replaceFirst('https://', 'wss://')
+        .replaceFirst('http://', 'ws://');
+
+    final token = await getAuthToken();
+
+    // ================================================================
+    // TAMBAHKAN PRINT INI UNTUK DEBUGGING FINAL
+    // ================================================================
+    print("🔍 [WebSocket] Mencoba terhubung dengan token: $token");
+    // ================================================================
+
+    if (token == null) {
+      print('❌ [WebSocket] Gagal: Token tidak ditemukan saat akan terhubung.');
+      return null;
+    }
+
+    try {
+      final uri = Uri.parse('$wsUrl/orders/ws?token=$token');
+      _channel = WebSocketChannel.connect(uri);
+
+      print(
+        '✅ [WebSocket] URI koneksi telah dibuat. Menunggu status koneksi...',
+      );
+      return _channel?.stream;
+    } catch (e) {
+      print('❌ [WebSocket] Koneksi gagal total: $e');
+      return null;
+    }
+  }
+
+  // FIX: Fungsi untuk menutup koneksi
+  void disconnectWebSocket() {
+    _channel?.sink.close();
   }
 
   // ================== USERS ==================
@@ -209,6 +315,22 @@ class ApiService {
     }
   }
 
+  Future<List<ProductUser>> fetchProductUsers() async {
+    final headers = await getAuthHeaders();
+    headers.remove("Content-Type");
+
+    final response = await http.get(
+      Uri.parse("$baseUrl/product-users/"),
+      headers: headers,
+    );
+    if (response.statusCode == 200) {
+      List data = json.decode(response.body);
+      return data.map((e) => ProductUser.fromJson(e)).toList();
+    } else {
+      throw Exception("Failed to load product-user relations");
+    }
+  }
+
   Future<List<Product>> fetchStaffProducts(
     int staffId, {
     Map<String, dynamic>? filters,
@@ -289,6 +411,7 @@ class ApiService {
     required int harga,
     required int kategoriId,
     required XFile? gambar,
+    String? deskripsi,
     required Uint8List? imageBytes,
     required String? existingImageUrl,
     required int staffId,
@@ -321,6 +444,7 @@ class ApiService {
       "harga": harga,
       "kategori_id": kategoriId,
       "gambar": base64String ?? existingImageUrl,
+      "deskripsi": deskripsi, // <--- FIX: Sertakan deskripsi di payload
       "is_active": isActive, // <--- FIX: Sertakan isActive di payload
     };
 
@@ -377,6 +501,89 @@ class ApiService {
     } else {
       throw Exception("Gagal memperbarui status pesanan: ${response.body}");
     }
+  }
+
+  // FIX: Fungsi baru untuk memicu pembaruan status order di backend
+  Future<Order> updateOverallOrderStatus(int orderId) async {
+    final headers = await getAuthHeaders();
+    // Endpoint ini diharapkan akan menjalankan logika di backend untuk
+    // menentukan status order berdasarkan item-itemnya.
+    final response = await http.put(
+      Uri.parse("$baseUrl/orders/$orderId/update-overall-status"),
+      headers: headers,
+    );
+
+    if (response.statusCode == 200) {
+      return Order.fromJson(json.decode(response.body));
+    } else {
+      throw Exception("Gagal sinkronisasi status pesanan: ${response.body}");
+    }
+  }
+
+  // FIX: Fungsi baru untuk update status per item
+  Future<OrderItem> updateOrderItemStatus(int itemId, String newStatus) async {
+    final headers = await getAuthHeaders();
+    final response = await http.put(
+      Uri.parse("$baseUrl/orders/items/$itemId/status"),
+      headers: headers,
+      body: json.encode({"status": newStatus}),
+    );
+
+    if (response.statusCode == 200) {
+      return OrderItem.fromJson(json.decode(response.body));
+    } else {
+      throw Exception(
+        "Gagal memperbarui status item pesanan: ${response.body}",
+      );
+    }
+  }
+
+  // Endpoint baru untuk mengambil ringkasan penjualan staff
+  Future<List<SalesData>> fetchStaffSalesSummary(int staffId) async {
+    final headers = await getAuthHeaders();
+    // Backend akan menggunakan token untuk mengidentifikasi staff.
+    // Endpoint ini harus dibuat di backend (misal: GET /orders/staff/sales-summary)
+    // dan harus mengembalikan data penjualan harian untuk produk staff tersebut.
+    final response = await http.get(
+      Uri.parse("$baseUrl/orders/staff/sales-summary"),
+      headers: headers,
+    );
+    if (response.statusCode == 200) {
+      List data = json.decode(response.body);
+      return data.map((e) => SalesData.fromJson(e)).toList();
+    } else {
+      throw Exception("Gagal memuat ringkasan penjualan: ${response.body}");
+    }
+  }
+
+    Future<List<OrderItem>> fetchMyOrderItems() async {
+    final headers = await getAuthHeaders();
+    final response = await http.get(
+      Uri.parse("$baseUrl/orders/items/me"),
+      headers: headers,
+    );
+    if (response.statusCode == 200) {
+      List data = json.decode(response.body);
+      return data.map((itemJson) => OrderItem.fromJson(itemJson)).toList();
+    } else {
+      throw Exception('Gagal memuat item pesanan');
+    }
+  }
+
+   Future<Map<String, dynamic>> fetchStaffExportData(int staffId) async {
+    // 1. Ambil semua pesanan dan semua item secara bersamaan
+    final results = await Future.wait([
+      fetchStaffOrderInbox(staffId),
+      fetchMyOrderItems(),
+      fetchProducts(filters: {'include_inactive': 'true'})
+    ]);
+
+    // 2. Kembalikan sebagai Map dengan dua list terpisah
+    return {
+      'orders': results[0] as List<Order>,
+      'items': results[1] as List<OrderItem>,
+      'products': results[2] as List<Product>,
+    };
   }
 
   // ================== CATEGORIES ==================
@@ -579,10 +786,31 @@ class ApiService {
 
     if (response.statusCode == 200) {
       List data = json.decode(response.body);
-      return data.map((e) => Order.fromJson(e)).toList();
+      // FIX: Lakukan parsing secara eksplisit untuk memastikan semua field terbaca.
+      // Ini akan mencegah masalah jika ada definisi Order.fromJson yang tidak sinkron.
+      return data.map((orderJson) {
+        // Tambahkan print di sini untuk melihat JSON mentah per item
+        // print("Raw Order JSON from API: $orderJson");
+        return Order.fromJson(orderJson as Map<String, dynamic>);
+      }).toList();
     } else {
       // Tambahkan detail body untuk debugging yang lebih baik
       throw Exception("Failed to load orders: ${response.body}");
+    }
+  }
+
+  // FIX: Fungsi baru untuk mengambil satu order berdasarkan ID-nya.
+  Future<Order> fetchOrderById(int orderId) async {
+    final headers = await getAuthHeaders();
+    headers.remove("Content-Type");
+
+    final url = Uri.parse("$baseUrl/orders/$orderId");
+    final response = await http.get(url, headers: headers);
+
+    if (response.statusCode == 200) {
+      return Order.fromJson(json.decode(response.body));
+    } else {
+      throw Exception("Gagal mengambil detail pesanan: ${response.body}");
     }
   }
 
@@ -710,4 +938,40 @@ class ApiService {
       throw Exception("Failed to load payments");
     }
   }
+  Future<List<ProductSalesSummary>> fetchStaffProductSales(int staffId) async {
+    final headers = await getAuthHeaders();
+    // Endpoint ini harus dibuat di backend (misal: GET /orders/staff/product-summary)
+    final response = await http.get(
+      Uri.parse("$baseUrl/orders/staff/product-summary"),
+      headers: headers,
+    );
+    if (response.statusCode == 200) {
+      List data = json.decode(response.body);
+      return data.map((e) => ProductSalesSummary.fromJson(e)).toList();
+    } else {
+      throw Exception("Gagal memuat produk terlaris: ${response.body}");
+    }
+  }
+
+  // FUNGSI BARU: Menggabungkan semua data dashboard dalam satu panggilan
+  Future<StaffDashboardData> fetchStaffDashboardData(int staffId) async {
+    // Jalankan kedua API call secara paralel untuk efisiensi
+    final results = await Future.wait([
+      fetchStaffSalesSummary(staffId),
+      fetchStaffProductSales(staffId),
+    ]);
+
+    final dailySales = results[0] as List<SalesData>;
+    final productSales = results[1] as List<ProductSalesSummary>;
+
+    // Hitung total pendapatan di sini agar tidak dihitung di UI
+    final totalRevenue = dailySales.fold<double>(0.0, (sum, item) => sum + item.totalSales);
+
+    return StaffDashboardData(
+      dailySales: dailySales,
+      productSales: productSales,
+      totalRevenue: totalRevenue,
+    );
+  }
 }
+

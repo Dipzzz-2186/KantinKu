@@ -28,12 +28,14 @@ class ProductImageDisplay extends StatelessWidget {
       return Icon(placeholderIcon, size: iconSize, color: Colors.grey);
     }
 
-    // Check if it's a Base64 string
-    // A simple heuristic: if it's long and doesn't start with http/https
-    final isBase64 =
-        imageString!.length > 100 &&
-        !imageString!.startsWith('http://') &&
-        !imageString!.startsWith('https://');
+    // FIX: Perbaiki deteksi Base64.
+    // URL bisa jadi sangat panjang, jadi jangan andalkan panjangnya.
+    // Cukup cek apakah string diawali dengan 'data:image' atau tidak mengandung karakter URL umum.
+    // Heuristik yang lebih baik: jika tidak dimulai dengan http, anggap itu base64.
+    final isUrl =
+        imageString!.startsWith('http://') ||
+        imageString!.startsWith('https://');
+    final isBase64 = !isUrl;
 
     if (isBase64) {
       try {

@@ -21,6 +21,17 @@ dependencies:
   url_launcher: ^6.2.2
   flutter_inappwebview: ^6.0.0
   image_picker: ^1.1.0
+  web_socket_channel: ^2.4.0
+  fl_chart: ^1.1.1
+  excel: ^4.0.2 # <-- Tambahkan ini untuk membuat file Excel
+  path_provider: ^2.1.3 # <-- Tambahkan ini untuk path di mobile
+  open_filex: ^4.4.0 # <-- Tambahkan ini untuk membuka file di mobile
+  universal_html: ^2.2.4 # <-- Tambahkan ini untuk download di web
+  firebase_core: ^3.1.1 # Diperlukan untuk semua layanan Firebase
+  firebase_messaging: ^15.0.1 # Untuk push notifications
+  flutter_local_notifications: ^17.1.2 # Untuk menampilkan notifikasi saat aplikasi di foreground
+  go_router: ^13.0.0
+
 
 dev_dependencies:
   flutter_test:

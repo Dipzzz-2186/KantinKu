@@ -5,6 +5,7 @@ class OrderItem {
   final int jumlah;
   final double hargaUnit;
   final double subtotal;
+  final String status;
 
   OrderItem({
     required this.id,
@@ -13,6 +14,7 @@ class OrderItem {
     required this.jumlah,
     required this.hargaUnit,
     required this.subtotal,
+    required this.status,
   });
 
   factory OrderItem.fromJson(Map<String, dynamic> json) {
@@ -23,6 +25,7 @@ class OrderItem {
       jumlah: json['jumlah'],
       hargaUnit: (json['harga_unit'] as num).toDouble(),
       subtotal: (json['subtotal'] as num).toDouble(),
+      status: json['status'] ?? 'paid',
     );
   }
 
@@ -34,6 +37,7 @@ class OrderItem {
       "jumlah": jumlah,
       "harga_unit": hargaUnit,
       "subtotal": subtotal,
+      "status": status,
     };
   }
 }

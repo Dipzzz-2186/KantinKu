@@ -4,7 +4,7 @@ class Order {
   final String status;
   final double totalHarga;
   final String? tanggalPesanan;
-  // FIX: Tambahkan kembali list of items. Ini akan diisi secara terpisah.
+  final String? snapRedirectUrl;
 
   Order({
     required this.id,
@@ -12,6 +12,7 @@ class Order {
     required this.status,
     required this.totalHarga,
     this.tanggalPesanan,
+    this.snapRedirectUrl,
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
@@ -21,10 +22,11 @@ class Order {
       status: json['status'],
       totalHarga: (json['total_harga'] as num).toDouble(),
       tanggalPesanan: json['tanggal_pesanan'],
+      snapRedirectUrl:
+          json['snap_redirect_url'], // Pastikan nama field ini sama persis dengan di JSON response
     );
   }
 
-  // Helper method untuk membuat salinan Order dengan item yang baru
   Order copyWith() {
     return Order(
       id: id,
@@ -32,6 +34,7 @@ class Order {
       status: status,
       totalHarga: totalHarga,
       tanggalPesanan: tanggalPesanan,
+      snapRedirectUrl: snapRedirectUrl,
     );
   }
 
@@ -42,6 +45,7 @@ class Order {
       "status": status,
       "total_harga": totalHarga,
       "tanggal_pesanan": tanggalPesanan,
+      "snap_redirect_url": snapRedirectUrl,
     };
   }
 }
